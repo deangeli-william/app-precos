@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Preços">
+  <meta name="theme-color" content="#f6f5f1">
+  <title>Preços</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icone-180.png">
+  <link rel="icon" href="icone-180.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Login -->
+  <section id="tela-login" class="tela" hidden>
+    <div class="centro">
+      <h1 class="logo">Preços</h1>
+      <p class="sub">Memória de preços do mercado</p>
+      <form id="form-login" class="cartao">
+        <label>E-mail
+          <input id="login-email" type="email" autocomplete="username" required>
+        </label>
+        <label>Senha
+          <input id="login-senha" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn primario" type="submit">Entrar</button>
+        <p id="login-erro" class="erro" hidden></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- Nome (primeiro acesso) -->
+  <section id="tela-nome" class="tela" hidden>
+    <div class="centro">
+      <h1>Como você quer aparecer?</h1>
+      <p class="sub">Esse nome aparece nos preços que você registrar.</p>
+      <form id="form-nome" class="cartao">
+        <label>Seu nome
+          <input id="nome-input" type="text" maxlength="30" required autocomplete="given-name">
+        </label>
+        <button class="btn primario" type="submit">Continuar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Início -->
+  <section id="tela-inicio" class="tela" hidden>
+    <header class="topo">
+      <h1 class="logo">Preços</h1>
+      <button id="btn-sair" class="link">Sair</button>
+    </header>
+    <button id="btn-escanear" class="btn escanear">
+      <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>
+      Escanear
+    </button>
+    <button id="btn-digitar" class="link centralizado">Digitar o código</button>
+    <h2 class="secao">Últimos registros</h2>
+    <ul id="lista-recentes" class="lista"></ul>
+    <p id="recentes-vazio" class="vazio" hidden>Nenhum preço registrado ainda.</p>
+  </section>
+
+  <!-- Scanner -->
+  <section id="tela-scanner" class="tela escura" hidden>
+    <div id="leitor"></div>
+    <p class="dica">Aponte para o código de barras</p>
+    <p id="scanner-erro" class="erro claro" hidden></p>
+    <form id="form-codigo" class="manual">
+      <input id="codigo-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Ou digite o código" autocomplete="off">
+      <button class="btn" type="submit">OK</button>
+    </form>
+    <button id="btn-cancelar-scan" class="btn fantasma">Cancelar</button>
+  </section>
+
+  <!-- Produto e registro -->
+  <section id="tela-produto" class="tela" hidden>
+    <header class="topo">
+      <button id="btn-voltar" class="link">‹ Voltar</button>
+      <span id="produto-codigo" class="codigo"></span>
+    </header>
+
+    <div id="bloco-novo" hidden>
+      <p class="aviso">Produto novo. Dê um nome para ele.</p>
+      <label class="campo">Nome do produto
+        <input id="produto-nome-input" type="text" maxlength="80" placeholder="Ex.: Arroz Tio João 5kg">
+      </label>
+    </div>
+    <h1 id="produto-nome" class="produto-nome" hidden></h1>
+
+    <div id="bloco-referencia" class="referencias" hidden>
+      <div class="ref principal">
+        <span id="ref1-titulo" class="ref-titulo">Última compra</span>
+        <strong id="ref1-preco" class="ref-preco"></strong>
+        <span id="ref1-detalhe" class="ref-detalhe"></span>
+      </div>
+      <div id="ref2" class="ref">
+        <span class="ref-titulo">Menor preço visto</span>
+        <strong id="ref2-preco" class="ref-preco"></strong>
+        <span id="ref2-detalhe" class="ref-detalhe"></span>
+      </div>
+    </div>
+
+    <div class="cartao registro">
+      <label class="campo">Preço agora
+        <input id="preco-input" class="preco" type="text" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off">
+      </label>
+      <p id="comparacao" class="comparacao" hidden></p>
+      <label class="campo">Mercado
+        <select id="mercado-select"></select>
+      </label>
+      <label id="campo-novo-mercado" class="campo" hidden>Nome do mercado
+        <input id="novo-mercado-input" type="text" maxlength="40" placeholder="Ex.: Balani">
+      </label>
+      <div class="acoes">
+        <button id="btn-comprei" class="btn primario">Comprei</button>
+        <button id="btn-so-vi" class="btn">Só vi</button>
+      </div>
+      <p id="registro-erro" class="erro" hidden></p>
+    </div>
+
+    <h2 id="titulo-historico" class="secao" hidden>Histórico deste produto</h2>
+    <ul id="lista-historico" class="lista"></ul>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
