@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Preços</title>
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Preços">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icones/icone-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<p id="tela-carregando" class="carregando">Carregando…</p>
+
+<!-- Login (só na primeira vez) -->
+<section id="tela-login" class="tela" hidden>
+  <div class="centro">
+    <h1 class="logo">Preços</h1>
+    <p class="sub">Memória de preços da casa</p>
+    <form id="form-login" class="cartao">
+      <label>E-mail<input id="login-email" type="email" autocomplete="username" required></label>
+      <label>Senha<input id="login-senha" type="password" autocomplete="current-password" minlength="6" required></label>
+      <button id="btn-entrar" class="btn primario" type="submit">Entrar</button>
+      <p id="login-erro" class="erro" hidden></p>
+      <p id="login-ok" class="ok" hidden></p>
+    </form>
+    <button id="btn-alternar-login" class="link centralizado" type="button">Primeiro acesso? Criar minha senha</button>
+  </div>
+</section>
+
+<!-- Nome (só na primeira vez) -->
+<section id="tela-nome" class="tela" hidden>
+  <div class="centro">
+    <h1 class="logo">Preços</h1>
+    <form id="form-nome" class="cartao">
+      <label>Como você quer aparecer nos registros?
+        <input id="nome-input" type="text" maxlength="30" required placeholder="Ex.: William">
+      </label>
+      <button class="btn primario" type="submit">Começar</button>
+      <p id="nome-erro" class="erro" hidden></p>
+    </form>
+  </div>
+</section>
+
+<!-- Principal -->
+<section id="tela-inicio" class="tela" hidden>
+  <header class="topo"><h1 class="logo">Preços</h1><button id="btn-quem" class="quem"></button></header>
+  <button id="btn-escanear" class="btn escanear">
+    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>
+    Escanear ou buscar
+  </button>
+  <h2 class="secao">Últimos registros</h2>
+  <ul id="lista-recentes" class="lista"></ul>
+  <p id="recentes-vazio" class="vazio" hidden>Nenhum preço registrado ainda.</p>
+</section>
+
+<!-- Câmera e busca -->
+<section id="tela-scanner" class="tela escura" hidden>
+  <div id="leitor"></div>
+  <p id="dica-camera" class="dica">Aponte para o código de barras.</p>
+  <p id="lendo" class="lendo" hidden>Lendo o código…</p>
+  <p id="scanner-erro" class="erro claro" hidden></p>
+  <label class="btn foto" for="foto-input">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    Não leu? Fotografar o código
+  </label>
+  <input id="foto-input" type="file" accept="image/*" capture="environment" hidden>
+  <div class="busca"><input id="busca-input" type="search" placeholder="Ou busque pelo nome (ex.: banana)" autocomplete="off"></div>
+  <ul id="resultados" class="resultados"></ul>
+  <button id="btn-cancelar" class="btn fantasma" style="max-width:520px;display:block;margin:14px auto 0">Cancelar</button>
+</section>
+
+<!-- Produto -->
+<section id="tela-produto" class="tela" hidden>
+  <header class="topo"><button id="btn-voltar" class="link">‹ Voltar</button><span id="produto-codigo" class="codigo"></span></header>
+
+  <div id="bloco-novo" hidden>
+    <p id="aviso-produto" class="aviso">Produto novo. Preencha uma vez só.</p>
+    <div class="cartao" style="margin-bottom:14px">
+      <label class="campo">Produto<input id="f-produto" type="text" maxlength="60" placeholder="Ex.: Arroz"></label>
+      <label class="campo"><span>Marca <span class="opcional">(opcional)</span></span><input id="f-marca" type="text" maxlength="40" placeholder="Ex.: Tio João"></label>
+      <div class="campo">Vendido por
+        <div id="f-vendido" class="segmentado">
+          <button type="button" data-v="kg">kg</button><button type="button" data-v="g">g</button><button type="button" data-v="litro">L</button><button type="button" data-v="ml">ml</button><button type="button" data-v="pacote" class="on">pct</button><button type="button" data-v="unidade">un</button><button type="button" data-v="caixa">cx</button>
+        </div>
+      </div>
+      <label id="campo-tamanho" class="campo"><span>Tamanho <span class="opcional">(opcional)</span></span><input id="f-tamanho" type="text" maxlength="20" placeholder="Ex.: 5 kg, 500 g, 1 L"></label>
+    </div>
+    <div id="acoes-edicao" class="acoes" hidden><button id="btn-salvar-produto" class="btn primario">Salvar correção</button><button id="btn-cancelar-edicao" class="btn">Cancelar</button></div>
+  </div>
+
+  <div id="bloco-conhecido" hidden>
+    <div class="titulo-linha"><h1 id="p-nome" class="produto-nome"></h1><button id="btn-corrigir-produto" class="link">Corrigir</button></div>
+    <p id="p-marca" class="marca-linha"></p>
+    <div id="bloco-referencia" class="referencias" hidden>
+      <div class="ref principal"><span id="ref1-titulo" class="ref-titulo">Última compra</span><strong id="ref1-preco" class="ref-preco"></strong><span id="ref1-detalhe" class="ref-detalhe"></span></div>
+      <div class="ref"><span class="ref-titulo">Menor preço visto</span><strong id="ref2-preco" class="ref-preco"></strong><span id="ref2-detalhe" class="ref-detalhe"></span></div>
+    </div>
+  </div>
+
+  <div id="cartao-registro" class="cartao">
+    <label class="campo"><span id="rotulo-preco">Preço agora</span><input id="preco-input" class="preco" type="text" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off"></label>
+    <p id="comparacao" class="comparacao" hidden></p>
+    <label class="campo">Onde<select id="onde-select"></select></label>
+    <label id="campo-novo-lugar" class="campo" hidden>Nome do lugar<input id="novo-lugar-input" type="text" maxlength="40" placeholder="Ex.: Balani, feira de sábado"></label>
+    <div class="acoes"><button id="btn-comprei" class="btn primario">Comprei</button><button id="btn-so-vi" class="btn">Só vi</button></div>
+    <p id="registro-erro" class="erro" hidden></p>
+  </div>
+
+  <h2 id="titulo-historico" class="secao" hidden>Histórico deste produto</h2>
+  <ul id="lista-historico" class="lista"></ul>
+</section>
+
+<div id="toast" class="toast" hidden></div>
+<div id="leitor-oculto" style="display:none"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
