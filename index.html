@@ -61,7 +61,11 @@
 
 <!-- Câmera e busca -->
 <section id="tela-scanner" class="tela escura" hidden>
-  <div id="leitor"></div>
+  <div id="leitor">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="mira" aria-hidden="true"></div>
+    <button id="btn-lanterna" class="lanterna" type="button" hidden>Lanterna</button>
+  </div>
   <p id="dica-camera" class="dica">Aponte para o código de barras.</p>
   <p id="lendo" class="lendo" hidden>Lendo o código…</p>
   <p id="scanner-erro" class="erro claro" hidden></p>
@@ -117,10 +121,9 @@
 </section>
 
 <div id="toast" class="toast" hidden></div>
-<div id="leitor-oculto" style="display:none"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.4/dist/iife/reader/index.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

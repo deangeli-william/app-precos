@@ -229,46 +229,126 @@
   }
 
   // ---------- câmera e busca ----------
-  const formatos = () => { const F = Html5QrcodeSupportedFormats; return [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128]; };
-  let leitorVivo = null;
+  // Leitor: zxing-cpp (WebAssembly). Lê o quadro inteiro que aparece na tela, sem precisar enquadrar.
+  const FORMATOS = ['EAN-13', 'EAN-8', 'UPC-A', 'UPC-E', 'Code128'];
+  const OPC_VIVO = { formats: FORMATOS, tryHarder: true, tryRotate: true, tryInvert: false, tryDownscale: true, maxNumberOfSymbols: 1 };
+  const OPC_FOTO = { formats: FORMATOS, tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, maxNumberOfSymbols: 4 };
+  const temLeitor = () => typeof ZXingWASM !== 'undefined';
+  // já baixa o leitor ao abrir o app, para a câmera ler de primeira
+  if (temLeitor()) { try { Promise.resolve(ZXingWASM.prepareZXingModule({ fireImmediately: true })).catch(() => {}); } catch (_) { /* tenta na hora */ } }
+
+  const quadro = document.createElement('canvas');
+  const ctxQuadro = quadro.getContext('2d', { willReadFrequently: true });
+  let fluxo = null;
+  let sessao = 0;
   let lido = false;
 
   $('btn-escanear').addEventListener('click', () => {
     mostrar('tela-scanner');
     $('busca-input').value = ''; $('resultados').replaceChildren();
     $('scanner-erro').hidden = true; $('lendo').hidden = true;
-    $('dica-camera').textContent = 'Aponte para o código de barras.';
+    $('dica-camera').textContent = 'Aponte para o código de barras. Se ficar borrado, afaste um pouco o celular.';
     ligarCamera();
   });
   $('btn-cancelar').addEventListener('click', () => irParaInicio());
 
+  // O iPhone desliga a câmera quando o app vai para segundo plano: religa ao voltar.
+  document.addEventListener('visibilitychange', () => {
+    if (telaAtual !== 'tela-scanner') return;
+    if (document.visibilityState === 'visible') ligarCamera(); else desligarCamera();
+  });
+
   async function ligarCamera() {
+    desligarCamera();
+    const minha = ++sessao;
     lido = false;
-    if (typeof Html5Qrcode === 'undefined') { $('dica-camera').textContent = 'O leitor não carregou. Use a foto ou busque pelo nome.'; return; }
+    $('leitor').classList.remove('achou');
+    if (!temLeitor()) { $('dica-camera').textContent = 'O leitor não carregou. Confira a internet, use a foto ou busque pelo nome.'; return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('dica-camera').textContent = 'Este navegador não liga a câmera. Use a foto ou busque pelo nome.'; return; }
     try {
-      leitorVivo = new Html5Qrcode('leitor', { formatsToSupport: formatos(), verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
-      await leitorVivo.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: (w, h) => ({ width: Math.floor(w * 0.88), height: Math.max(80, Math.floor(Math.min(w, h) * 0.45)) }) },
-        (texto) => {
-          const c = String(texto).trim();
-          if (lido || !codigoValido(c)) return;
-          lido = true;
-          if (navigator.vibrate) navigator.vibrate(60);
-          abrirPorCodigo(c);
-        },
-        () => {},
-      );
-      if (telaAtual !== 'tela-scanner') desligarCamera();
+      const s = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      if (minha !== sessao || telaAtual !== 'tela-scanner') { s.getTracks().forEach((t) => t.stop()); return; }
+      fluxo = s;
+      const v = $('video');
+      v.srcObject = s;
+      try { await v.play(); } catch (_) { /* autoplay mudo já toca */ }
+      ajustarCamera(s.getVideoTracks()[0]);
+      varrer(minha);
     } catch (_) {
-      leitorVivo = null;
-      $('dica-camera').textContent = 'Não consegui ligar a câmera. Permita o acesso à câmera (Ajustes do iPhone › Safari › Câmera), fotografe o código ou busque pelo nome.';
+      if (minha !== sessao) return;
+      $('dica-camera').textContent = 'Não consegui ligar a câmera. Permita o acesso à câmera (Ajustes do iPhone › Apps › Safari › Câmera), fotografe o código ou busque pelo nome.';
     }
   }
-  async function desligarCamera() {
-    const l = leitorVivo; leitorVivo = null;
-    if (!l) return;
-    try { if (l.isScanning) await l.stop(); l.clear(); } catch (_) { /* já parado */ }
+
+  function desligarCamera() {
+    sessao++;
+    if (fluxo) { fluxo.getTracks().forEach((t) => t.stop()); fluxo = null; }
+    const v = $('video');
+    if (v) v.srcObject = null;
+    $('btn-lanterna').hidden = true; $('btn-lanterna').classList.remove('on');
+  }
+
+  function ajustarCamera(trilha) {
+    if (!trilha) return;
+    let cap = {};
+    try { cap = trilha.getCapabilities ? trilha.getCapabilities() : {}; } catch (_) { /* sem informações */ }
+    const extra = {};
+    if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) extra.focusMode = 'continuous';
+    if (Object.keys(extra).length) trilha.applyConstraints({ advanced: [extra] }).catch(() => {});
+    if (cap.torch) $('btn-lanterna').hidden = false;
+  }
+  $('btn-lanterna').addEventListener('click', async () => {
+    const t = fluxo && fluxo.getVideoTracks()[0];
+    if (!t) return;
+    const ligar = !$('btn-lanterna').classList.contains('on');
+    try { await t.applyConstraints({ advanced: [{ torch: ligar }] }); $('btn-lanterna').classList.toggle('on', ligar); } catch (_) { /* sem lanterna */ }
+  });
+
+  // Recorta a parte do vídeo que aparece na tela (o quadro inteiro, não só a mira).
+  function lerQuadro(v) {
+    const w = v.videoWidth, h = v.videoHeight;
+    const caixa = $('leitor').getBoundingClientRect();
+    const aCaixa = caixa.width && caixa.height ? caixa.width / caixa.height : 4 / 3;
+    let sw = w, sh = h;
+    if (w / h > aCaixa) sw = Math.round(h * aCaixa); else sh = Math.round(w / aCaixa);
+    const sx = Math.round((w - sw) / 2), sy = Math.round((h - sh) / 2);
+    const k = Math.min(1, 1280 / Math.max(sw, sh));
+    const cw = Math.round(sw * k), ch = Math.round(sh * k);
+    if (quadro.width !== cw || quadro.height !== ch) { quadro.width = cw; quadro.height = ch; }
+    ctxQuadro.drawImage(v, sx, sy, sw, sh, 0, 0, cw, ch);
+    return ctxQuadro.getImageData(0, 0, cw, ch);
+  }
+
+  const proximoQuadro = () => new Promise((ok) => (window.requestAnimationFrame ? requestAnimationFrame(() => ok()) : setTimeout(ok, 30)));
+
+  async function varrer(minha) {
+    const v = $('video');
+    while (minha === sessao && !lido) {
+      await proximoQuadro();
+      if (minha !== sessao || lido) return;
+      if (v.readyState < 2 || !v.videoWidth) continue;
+      let achados = [];
+      try { achados = await ZXingWASM.readBarcodes(lerQuadro(v), OPC_VIVO); } catch (_) { await new Promise((ok) => setTimeout(ok, 300)); continue; }
+      if (minha !== sessao || lido) return;
+      const c = codigoDe(achados);
+      if (!c) continue;
+      lido = true;
+      $('leitor').classList.add('achou');
+      if (navigator.vibrate) navigator.vibrate(60);
+      setTimeout(() => { if (telaAtual === 'tela-scanner') abrirPorCodigo(c); }, 200);
+      return;
+    }
+  }
+
+  function codigoDe(achados) {
+    for (const a of achados || []) {
+      const c = String(a.text || '').trim();
+      if ((a.isValid === undefined || a.isValid) && codigoValido(c)) return c;
+    }
+    return null;
   }
 
   function abrirPorCodigo(c) {
@@ -284,41 +364,46 @@
     return (10 - (s % 10)) % 10 === v;
   }
 
-  // Reserva: ler o código por foto. Reduz a foto antes, para ficar rápido.
-  function reduzir(arquivo, max = 1600) {
+  // Reserva: ler o código por foto (tenta em tamanhos diferentes).
+  function carregarImagem(arquivo) {
     return new Promise((ok, falha) => {
       const img = new Image();
-      img.onload = () => {
-        const k = Math.min(1, max / Math.max(img.width, img.height));
-        const c = document.createElement('canvas');
-        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        c.toBlob((b) => b ? ok(new File([b], 'foto.jpg', { type: 'image/jpeg' })) : falha(new Error('imagem')), 'image/jpeg', 0.92);
-        URL.revokeObjectURL(img.src);
-      };
+      img.onload = () => ok(img);
       img.onerror = () => falha(new Error('imagem'));
       img.src = URL.createObjectURL(arquivo);
     });
+  }
+  function pixels(img, max) {
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, c.width, c.height);
+    return g.getImageData(0, 0, c.width, c.height);
   }
   $('foto-input').addEventListener('change', async (e) => {
     const arq = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!arq) return;
     $('scanner-erro').hidden = true; $('lendo').hidden = false;
+    let img = null;
     try {
-      if (typeof Html5Qrcode === 'undefined') throw new Error('leitor');
-      const leitor = new Html5Qrcode('leitor-oculto', { formatsToSupport: formatos(), verbose: false });
-      const pequena = await reduzir(arq);
-      let texto;
-      try { texto = await leitor.scanFile(pequena, false); } catch (_) { texto = await leitor.scanFile(arq, false); }
-      const c = String(texto).trim();
-      if (!codigoValido(c)) throw new Error('codigo');
+      if (!temLeitor()) throw new Error('leitor');
+      img = await carregarImagem(arq);
+      let c = null;
+      for (const max of [1600, 2600, 1000]) {
+        c = codigoDe(await ZXingWASM.readBarcodes(pixels(img, max), OPC_FOTO));
+        if (c) break;
+      }
+      if (!c) throw new Error('codigo');
       $('lendo').hidden = true;
       abrirPorCodigo(c);
     } catch (_) {
       $('lendo').hidden = true;
-      $('scanner-erro').textContent = 'Não consegui ler o código nessa foto. Tente de novo mais de perto, com o código reto e bem iluminado, ou busque pelo nome.';
+      $('scanner-erro').textContent = 'Não consegui ler o código nessa foto. Tente de novo com o código inteiro aparecendo, ou busque pelo nome.';
       $('scanner-erro').hidden = false;
+    } finally {
+      if (img) URL.revokeObjectURL(img.src);
     }
   });
 
