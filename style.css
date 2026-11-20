@@ -83,6 +83,7 @@ body.escuro { background: #111; }
 #leitor.achou .mira { border-color: #3ddc84; }
 .lanterna { position: absolute; right: 10px; bottom: 10px; padding: 8px 12px; border-radius: 20px; border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; }
 .lanterna.on { background: #ffd54a; color: #111; }
+.lanterna.zoom { right: auto; left: 10px; min-width: 44px; }
 .dica { text-align: center; color: #ccc; margin: 12px auto 0; max-width: 520px; font-size: 15px; }
 .btn.foto { width: 100%; max-width: 520px; display: flex; gap: 10px; align-items: center; justify-content: center; margin: 12px auto 0; padding: 14px; font-size: 16px; background: transparent; color: #ddd; border: 1px dashed rgba(255,255,255,.4); border-radius: 12px; }
 .busca { max-width: 520px; margin: 16px auto 0; }

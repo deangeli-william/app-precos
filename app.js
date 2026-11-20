@@ -247,7 +247,7 @@
     mostrar('tela-scanner');
     $('busca-input').value = ''; $('resultados').replaceChildren();
     $('scanner-erro').hidden = true; $('lendo').hidden = true;
-    $('dica-camera').textContent = 'Aponte para o código de barras. Se ficar borrado, afaste um pouco o celular.';
+    $('dica-camera').textContent = 'Aponte para o código de barras, com o celular a uns 20 cm. Se ficar borrado, afaste mais.';
     ligarCamera();
   });
   $('btn-cancelar').addEventListener('click', () => irParaInicio());
@@ -289,6 +289,7 @@
     const v = $('video');
     if (v) v.srcObject = null;
     $('btn-lanterna').hidden = true; $('btn-lanterna').classList.remove('on');
+    $('btn-zoom').hidden = true;
   }
 
   function ajustarCamera(trilha) {
@@ -297,9 +298,19 @@
     try { cap = trilha.getCapabilities ? trilha.getCapabilities() : {}; } catch (_) { /* sem informações */ }
     const extra = {};
     if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) extra.focusMode = 'continuous';
+    // iPhones novos (ex.: 16 Plus) não focam de perto: com zoom 2x dá para ler segurando a ~20 cm.
+    zoomMax = cap.zoom && cap.zoom.max ? Math.min(2, cap.zoom.max) : 1;
+    if (zoomMax >= 1.5) { extra.zoom = zoomMax; $('btn-zoom').hidden = false; $('btn-zoom').textContent = '1x'; }
     if (Object.keys(extra).length) trilha.applyConstraints({ advanced: [extra] }).catch(() => {});
     if (cap.torch) $('btn-lanterna').hidden = false;
   }
+  let zoomMax = 1;
+  $('btn-zoom').addEventListener('click', async () => {
+    const t = fluxo && fluxo.getVideoTracks()[0];
+    if (!t) return;
+    const ir = $('btn-zoom').textContent === '1x' ? 1 : zoomMax;
+    try { await t.applyConstraints({ advanced: [{ zoom: ir }] }); $('btn-zoom').textContent = ir === 1 ? `${zoomMax}x` : '1x'; } catch (_) { /* sem zoom */ }
+  });
   $('btn-lanterna').addEventListener('click', async () => {
     const t = fluxo && fluxo.getVideoTracks()[0];
     if (!t) return;
@@ -308,12 +319,14 @@
   });
 
   // Recorta a parte do vídeo que aparece na tela (o quadro inteiro, não só a mira).
-  function lerQuadro(v) {
+  // Com "meio", lê só o centro em resolução cheia: ajuda quando o código aparece pequeno (celular afastado).
+  function lerQuadro(v, meio) {
     const w = v.videoWidth, h = v.videoHeight;
     const caixa = $('leitor').getBoundingClientRect();
     const aCaixa = caixa.width && caixa.height ? caixa.width / caixa.height : 4 / 3;
     let sw = w, sh = h;
     if (w / h > aCaixa) sw = Math.round(h * aCaixa); else sh = Math.round(w / aCaixa);
+    if (meio) { sw = Math.round(sw * 0.55); sh = Math.round(sh * 0.55); }
     const sx = Math.round((w - sw) / 2), sy = Math.round((h - sh) / 2);
     const k = Math.min(1, 1280 / Math.max(sw, sh));
     const cw = Math.round(sw * k), ch = Math.round(sh * k);
@@ -326,12 +339,14 @@
 
   async function varrer(minha) {
     const v = $('video');
+    let meio = false;
     while (minha === sessao && !lido) {
       await proximoQuadro();
       if (minha !== sessao || lido) return;
       if (v.readyState < 2 || !v.videoWidth) continue;
+      meio = !meio;
       let achados = [];
-      try { achados = await ZXingWASM.readBarcodes(lerQuadro(v), OPC_VIVO); } catch (_) { await new Promise((ok) => setTimeout(ok, 300)); continue; }
+      try { achados = await ZXingWASM.readBarcodes(lerQuadro(v, meio), OPC_VIVO); } catch (_) { await new Promise((ok) => setTimeout(ok, 300)); continue; }
       if (minha !== sessao || lido) return;
       const c = codigoDe(achados);
       if (!c) continue;
