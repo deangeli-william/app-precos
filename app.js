@@ -9,9 +9,13 @@
     $('tela-carregando').textContent = 'Não consegui carregar o app. Verifique a internet e abra de novo.';
     return;
   }
+  // Link do e-mail "Esqueci a senha": chega com #...type=recovery (ou #error=... se venceu).
+  const RECUPERANDO = /type=recovery/.test(location.hash);
+  const LINK_VENCIDO = /error_code=|[#&]error=/.test(location.hash);
   const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
+  const limparEndereco = () => { try { history.replaceState(null, '', location.pathname); } catch (_) { /* sem histórico */ } };
 
   // ---------- utilidades ----------
   function el(tag, classe, texto) {
@@ -164,6 +168,51 @@
       erro(mensagemErro(err));
     } finally {
       $('btn-entrar').disabled = false;
+    }
+  });
+
+  // Esqueci a senha: manda um e-mail com link para criar outra.
+  $('btn-esqueci').addEventListener('click', async () => {
+    const email = $('login-email').value.trim().toLowerCase();
+    const erro = (m) => { $('login-erro').textContent = m; $('login-erro').hidden = false; };
+    $('login-erro').hidden = true; $('login-ok').hidden = true;
+    if (!email) { erro('Escreva seu e-mail no campo acima e toque de novo em "Esqueci a senha".'); $('login-email').focus(); return; }
+    $('btn-esqueci').disabled = true;
+    try {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+      if (error) {
+        if (/rate limit|seconds|too many/i.test(error.message)) return erro('Muitos pedidos seguidos. Espere alguns minutos e tente de novo.');
+        return erro(error.message);
+      }
+      $('login-ok').textContent = 'Pronto! Abra o e-mail (olhe também no spam) e toque no link. Ele abre no Safari para você criar a senha nova.';
+      $('login-ok').hidden = false;
+    } catch (err) {
+      erro(navigator.onLine ? 'Não consegui pedir o e-mail. Tente de novo.' : 'Sem internet. Tente de novo quando tiver sinal.');
+    } finally {
+      $('btn-esqueci').disabled = false;
+    }
+  });
+
+  $('form-nova-senha').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const erro = (m) => { $('nova-senha-erro').textContent = m; $('nova-senha-erro').hidden = false; };
+    $('nova-senha-erro').hidden = true; $('btn-nova-senha').disabled = true;
+    try {
+      const { error } = await sb.auth.updateUser({ password: $('nova-senha').value });
+      if (error) {
+        if (/different|same/i.test(error.message)) return erro('A senha nova precisa ser diferente da antiga.');
+        if (/at least|characters|weak/i.test(error.message)) return erro('A senha precisa ter pelo menos 6 caracteres.');
+        if (/session|expired|jwt/i.test(error.message)) return erro('O link venceu. Volte ao app e peça outro em "Esqueci a senha".');
+        return erro(error.message);
+      }
+      limparEndereco();
+      toast('Senha nova salva. No ícone do app, entre com ela.');
+      const { data: { session } } = await sb.auth.getSession();
+      await iniciarSessao(session);
+    } catch (err) {
+      erro(navigator.onLine ? 'Não consegui salvar. Tente de novo.' : 'Sem internet. Tente de novo quando tiver sinal.');
+    } finally {
+      $('btn-nova-senha').disabled = false;
     }
   });
 
@@ -501,9 +550,9 @@
     estado.editando = true;
     $('f-produto').value = p.produto; $('f-marca').value = p.marca; $('f-tamanho').value = p.tamanho;
     estado.vendidoPor = p.vendido_por; atualizarVendido();
-    $('aviso-produto').textContent = 'Corrigindo o produto. A correção vale para todos os registros dele.';
+    $('aviso-produto').textContent = 'Corrigindo o produto. A correção vale para todos os registros dele. Para trocar o lugar ou o preço, toque em "Corrigir" no registro, lá embaixo.';
     $('bloco-novo').hidden = false; $('bloco-conhecido').hidden = true; $('cartao-registro').hidden = true;
-    $('titulo-historico').hidden = true; $('lista-historico').replaceChildren(); $('acoes-edicao').hidden = false;
+    $('acoes-edicao').hidden = false;
   });
   $('btn-cancelar-edicao').addEventListener('click', () => abrirProduto({ id: estado.produto.id }));
   $('btn-salvar-produto').addEventListener('click', async (e) => {
@@ -572,7 +621,7 @@
 
   function atualizarProdutoNaTela() { montarReferencias(); montarHistorico(); comparar(); }
 
-  // Corrigir ou apagar um registro próprio.
+  // Corrigir ou apagar um registro.
   function editorRegistro(r) {
     const box = el('div', 'editor');
     let centavos = Math.round(r.preco * 100), comprou = r.comprou;
@@ -580,7 +629,12 @@
     preco.addEventListener('input', () => { const d = preco.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 8); centavos = Number(d || 0); preco.value = centavos ? dinheiro(centavos / 100) : ''; });
     const sel = el('select');
     lugaresOrdenados().forEach((l) => { const o = el('option', null, l.nome); o.value = String(l.id); sel.append(o); });
+    const optNovo = el('option', null, '+ Novo lugar…'); optNovo.value = '__novo'; sel.append(optNovo);
     sel.value = String(r.lugar_id);
+    const novoLugar = el('input'); novoLugar.type = 'text'; novoLugar.maxLength = 40; novoLugar.placeholder = 'Ex.: Balani, feira de sábado';
+    novoLugar.addEventListener('blur', () => { novoLugar.value = capitalizar(novoLugar.value); });
+    const campoNovo = el('label', 'campo', 'Nome do lugar'); campoNovo.append(novoLugar); campoNovo.hidden = true;
+    sel.addEventListener('change', () => { campoNovo.hidden = sel.value !== '__novo'; if (!campoNovo.hidden) novoLugar.focus(); });
     const par = el('div', 'par'); const bc = el('button', null, 'Comprei'); const bv = el('button', null, 'Só vi');
     const marcar = () => { bc.classList.toggle('on', comprou); bv.classList.toggle('on', !comprou); };
     bc.addEventListener('click', () => { comprou = true; marcar(); }); bv.addEventListener('click', () => { comprou = false; marcar(); }); marcar();
@@ -589,8 +643,12 @@
     const acoes = el('div', 'acoes'); const salvar = el('button', 'btn primario', 'Salvar'); const cancelar = el('button', 'btn', 'Cancelar');
     salvar.addEventListener('click', async () => {
       if (!centavos) { toast('Digite o preço.'); return; }
+      const nome = capitalizar(novoLugar.value);
+      if (sel.value === '__novo' && !nome) { toast('Escreva o nome do lugar.'); return; }
       salvar.disabled = true;
-      const { data, error } = await sb.from('registros').update({ preco: centavos / 100, lugar_id: Number(sel.value), comprou })
+      let lugarId;
+      try { lugarId = await obterLugar(sel.value, nome); } catch (err) { salvar.disabled = false; toast(mensagemErro(err)); return; }
+      const { data, error } = await sb.from('registros').update({ preco: centavos / 100, lugar_id: lugarId, comprou })
         .eq('id', r.id).select('id,produto_id,lugar_id,preco,comprou,quando,usuario_id').single();
       salvar.disabled = false;
       if (error) { toast(mensagemErro(error)); return; }
@@ -610,7 +668,7 @@
       toast('Registro apagado.'); fechar();
     });
     const rot = (t, c) => { const l = el('label', 'campo', t); l.append(c); return l; };
-    box.append(rot('Preço', preco), rot('Onde', sel), par, acoes, apagar);
+    box.append(rot('Preço', preco), rot('Onde', sel), campoNovo, par, acoes, apagar);
     return box;
   }
 
@@ -711,6 +769,13 @@
   (async () => {
     try {
       const { data: { session } } = await sb.auth.getSession();
+      if (RECUPERANDO && session) { mostrar('tela-nova-senha'); $('nova-senha').focus(); return; }
+      if (LINK_VENCIDO && !session) {
+        limparEndereco(); ajustarLogin(); mostrar('tela-login');
+        $('login-erro').textContent = 'O link do e-mail venceu ou já foi usado. Escreva seu e-mail e peça outro em "Esqueci a senha".';
+        $('login-erro').hidden = false;
+        return;
+      }
       await iniciarSessao(session);
     } catch (err) {
       $('tela-carregando').hidden = false;

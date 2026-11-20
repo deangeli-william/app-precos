@@ -30,6 +30,19 @@
       <p id="login-ok" class="ok" hidden></p>
     </form>
     <button id="btn-alternar-login" class="link centralizado" type="button">Primeiro acesso? Criar minha senha</button>
+    <button id="btn-esqueci" class="link centralizado" type="button">Esqueci a senha</button>
+  </div>
+</section>
+
+<!-- Senha nova (aberta pelo link do e-mail) -->
+<section id="tela-nova-senha" class="tela" hidden>
+  <div class="centro">
+    <h1 class="logo">Preços</h1>
+    <form id="form-nova-senha" class="cartao">
+      <label>Senha nova<input id="nova-senha" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo de 6 caracteres"></label>
+      <button id="btn-nova-senha" class="btn primario" type="submit">Salvar senha nova</button>
+      <p id="nova-senha-erro" class="erro" hidden></p>
+    </form>
   </div>
 </section>
 
